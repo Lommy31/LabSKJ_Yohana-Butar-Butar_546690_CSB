@@ -3,7 +3,7 @@ import dns.query
 import dns.rdatatype
 import dns.exception
 
-# Root server list (pakai satu untuk awal, bisa ditambah)
+# Root server list (can use one for the first step and more if needed)
 ROOT_SERVERS = [
     "198.41.0.4",   # a.root-servers.net
     "199.9.14.201", # b.root-servers.net
@@ -12,34 +12,34 @@ ROOT_SERVERS = [
 
 def query_dns(domain, server, qtype=dns.rdatatype.A):
     """
-    Kirim query DNS ke server tertentu
+    Send query to a current server
     """
     try:
-        q = dns.message.make_query(domain, qtype)
-        r = dns.query.udp(q, server, timeout=3)
+        q = dns.message.make_query(domain, qtype) #make a message
+        r = dns.query.udp(q, server, timeout=3) #send the message
         return r
     except dns.exception.Timeout:
-        print(f"[!] Timeout querying {server}")
+        print(f"[!] Timeout querying {server}") #if the message not answered
         return None
     except Exception as e:
-        print(f"[!] Error querying {server}: {e}")
+        print(f"[!] Error querying {server}: {e}") #for error
         return None
 
 def recursive_resolve(domain, server_ip, hops=None):
     """
-    Resolver rekursif sederhana.
+    Simple Recursive Resolver
     """
     if hops is None:
         hops = []
 
     hops.append(server_ip)
-    print(f"[*] Querying {domain} at {server_ip}")
+    print(f"[*] Querying {domain} at {server_ip}") #query output
 
     resp = query_dns(domain, server_ip)
     if resp is None:
         return None, hops
 
-    # 1. Cek ANSWER section
+    # 1. Check ANSWER section
     for ans in resp.answer:
         for item in ans:
             if item.rdtype == dns.rdatatype.A:
@@ -50,24 +50,24 @@ def recursive_resolve(domain, server_ip, hops=None):
                 print(f"[~] CNAME found: {cname}")
                 return recursive_resolve(cname, ROOT_SERVERS[0], hops)
 
-    # 2. Cek ADDITIONAL section → ambil IP NS langsung
+    # 2. Check ADDITIONAL section
     for add in resp.additional:
         for item in add:
             if item.rdtype == dns.rdatatype.A:
                 return recursive_resolve(domain, item.address, hops)
 
-    # 3. Cek AUTHORITY section → ada NS name
+    # 3. Check AUTHORITY section
     for auth in resp.authority:
         for item in auth:
             if item.rdtype == dns.rdatatype.NS:
                 ns_name = str(item.target)
                 print(f"[>] Need to resolve NS hostname: {ns_name}")
-                # Resolve hostname NS pakai root server lagi
+                # Resolve hostname NS using root server again 
                 ns_ip, _ = recursive_resolve(ns_name, ROOT_SERVERS[0])
                 if ns_ip:
                     return recursive_resolve(domain, ns_ip, hops)
 
-    # Kalau sampai sini, gagal resolve
+    # If it falied to resolve
     print(f"[!] Failed to resolve {domain} at {server_ip}")
     return None, hops
 
